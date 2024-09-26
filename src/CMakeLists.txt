@@ -1,7 +1,11 @@
 include(ExternalProject)
 
-# Enabling `assert` by setting the build type to 'Debug' for test module
-set(CMAKE_BUILD_TYPE "Debug")
+# Set default cmake build type to RelWithDebInfo during prototyping
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo"
+    FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
 
 ## This block bundles VGio
 #find_package(Protobuf REQUIRED)
@@ -30,7 +34,7 @@ set(CMAKE_BUILD_TYPE "Debug")
 #  set(VGio_SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/libvgio)
 #  execute_process(COMMAND git submodule update --init --recursive -- ${VGio_SOURCE_DIR}
 #    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-#  add_subdirectory(${VGio_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/ext/libvgio)
+#  add_subdirectory(${VGio_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/ext/htslib)
 #endif()
 #
 ## If external libraries are added, the target depends on them assuring build
@@ -41,33 +45,11 @@ set(CMAKE_BUILD_TYPE "Debug")
 
 find_package(VGio REQUIRED)
 
-# Prepare "Catch" library
-if(NOT TARGET Catch2::Catch2)
-  set(CATCH_SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/catch)
-  execute_process(COMMAND git submodule update --init -- ${CATCH_SOURCE_DIR}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  add_subdirectory(${CATCH_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/ext/catch)
-endif()
-
-##### add definitions to find path to test data files
-add_definitions(-DPROJECT_TEST_DATA_DIR=${PROJECT_SOURCE_DIR}/tests/data)
-include_directories(${PROJECT_SOURCE_DIR}/src)  # for `parseCmdArgs.hpp`
-include_directories(${PROJECT_SOURCE_DIR}/ext)  # for `PaSGAL`, `clipp`, or `prettyprint`
-
-add_executable(test_graph_load test_main.cpp test_graphLoad.cpp)
-target_link_libraries(test_graph_load
+###generate main executable
+add_executable(pairg "${PROJECT_SOURCE_DIR}/src/main.cpp")
+target_include_directories(pairg
+  PRIVATE "${PROJECT_SOURCE_DIR}/ext"
+  PRIVATE VGio::VGio)
+target_link_libraries(pairg
   PRIVATE pairg::libpairg
-  PRIVATE VGio::VGio
-  PRIVATE Catch2::Catch2)
-
-add_executable(test_pairing test_main.cpp test_pairing.cpp)
-target_link_libraries(test_pairing
-  PRIVATE pairg::libpairg
-  PRIVATE VGio::VGio
-  PRIVATE Catch2::Catch2)
-
-add_executable(test_bfs test_main.cpp test_bfs.cpp)
-target_link_libraries(test_bfs
-  PRIVATE pairg::libpairg
-  PRIVATE VGio::VGio
-  PRIVATE Catch2::Catch2)
+  PRIVATE VGio::VGio)

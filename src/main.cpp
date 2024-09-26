@@ -3,15 +3,17 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#include "spgemm_utility.hpp"
-#include "utility.hpp"
-#include "parseCmdArgs.hpp"
-#include "reachability.hpp"
-#include "heuristics.hpp"
+#include <pairg/spgemm_utility.hpp>
+#include <pairg/utility.hpp>
+#include <pairg/reachability.hpp>
+#include <pairg/heuristics.hpp>
 
 //External includes
 #include "clipp/include/clipp.h"
 #include "prettyprint/prettyprint.hpp"
+#include "PaSGAL/graphLoad.hpp"
+
+#include "parseCmdArgs.hpp"
 
 /**
  * @brief   get a random pair of integers, each value lies in [0, MAX)
@@ -39,17 +41,32 @@ int main(int argc, char* argv[])
   {
     pairg::timer T1;
 
+    //load input graph
+    psgl::graphLoader g;
+    {
+      if (parameters.gmode.compare("vg") == 0)
+        g.loadFromVG(parameters.graphfile);
+      else if(parameters.gmode.compare("txt") == 0)
+        g.loadFromTxt(parameters.graphfile);
+      else
+      {
+        std::cerr << "Invalid graph format " << parameters.gmode << std::endl;
+        exit(1);
+      }
+    }
+
     //build adjacency matrix from input graph
-    pairg::matrixOps::crsMat_t adj_mat = pairg::getAdjacencyMatrix(parameters);
+    //Use g.diCharGraph to build adjacency matrix
+    pairg::matrixOps<>::crsMat_t adj_mat = pairg::getAdjacencyMatrix(g.diCharGraph);
     std::cout << "INFO, pairg::main, Time to build adjacency matrix (ms): " << T1.elapsed() << "\n";
-    pairg::matrixOps::printMatrix(adj_mat, 1);
+    pairg::matrixOps<>::printMatrix(adj_mat, 1);
 
     pairg::timer T2;
 
-    //build index matrix 
-    pairg::matrixOps::crsMat_t valid_pairs_mat = pairg::buildValidPairsMatrix(adj_mat, parameters); 
+    //build index matrix
+    pairg::matrixOps<>::crsMat_t valid_pairs_mat = pairg::buildValidPairsMatrix(adj_mat, parameters.d_low, parameters.d_up);
     std::cout << "INFO, pairg::main, Time to build result matrix (ms): " << T2.elapsed() << "\n";
-    pairg::matrixOps::printMatrix(valid_pairs_mat, 1);
+    pairg::matrixOps<>::printMatrix(valid_pairs_mat, 1);
 
     //build a set of distance queries
     std::vector< std::pair<int,int> > random_pairs;
@@ -65,7 +82,7 @@ int main(int argc, char* argv[])
     pairg::timer T3;
     for(int i = 0; i < parameters.querycount; i++)
     {
-      results_spgemm[i] = pairg::matrixOps::queryValue (valid_pairs_mat, random_pairs[i].first, random_pairs[i].second); 
+      results_spgemm[i] = pairg::matrixOps<>::queryValue (valid_pairs_mat, random_pairs[i].first, random_pairs[i].second);
     }
     std::cout << "INFO, pairg::main, Time to execute " << parameters.querycount << " queries (ms): " << T3.elapsed() << "\n";
   }

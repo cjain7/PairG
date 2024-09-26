@@ -1,82 +1,86 @@
-cmake_minimum_required(VERSION 3.1)
-include(CheckCXXCompilerFlag)
+cmake_minimum_required(VERSION 3.16)
 
-# project settings
-project(pairg)
+# Project settings
+project(pairg VERSION 0.2.1 LANGUAGES CXX)
 
-##### General Compilation Settings
-set(CMAKE_CXX_FLAGS "-w ${CMAKE_CXX_FLAGS} --std=c++11")
-
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
-
-#Set default cmake build type to RelWithDebInfo during prototyping
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
-    "Choose the type of build, options are: None Debug Release RelWithDebInfo"
-    FORCE)
-ENDIF(NOT CMAKE_BUILD_TYPE)
-
+## Options
+# Check if the user wants to only build the library
+option(BUILD_LIBRARY_ONLY "Inform whether only library should be built" OFF)
 # Check if the user wants to build google test applications
-OPTION(BUILD_TESTS "Inform whether test applications should be built" ON)
+option(BUILD_TESTING "Inform whether test applications should be built" OFF)
+# Check if the user wants to use bundled Kokkos library
+option(USE_BUNDLED_KOKKOS "Use bundled Kokkos" OFF)
+# Check if the user wants to use bundled KokkosKernels library
+option(USE_BUNDLED_KOKKOS_KERNELS "Use bundled KokkosKernels" OFF)
+# Check if the user wants to use all bundled dependencies
+option(USE_BUNDLED_ALL "Use all bundled dependencies" OFF)
+
+if(USE_BUNDLED_ALL)
+  set(USE_BUNDLED_KOKKOS on)
+  set(USE_BUNDLED_KOKKOS_KERNELS on)
+endif(USE_BUNDLED_ALL)
+
+# Include external modules
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+# Adding CMake module path.
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
+## Finding dependencies
+find_package(OpenMP REQUIRED)
+find_package(Kokkos QUIET)
+find_package(KokkosKernels QUIET)
+# Handle bundled dependencies
+include(${PROJECT_SOURCE_DIR}/ext/external.cmake)
+
+## Defining target library `libpairg`
+# Defining the INTERFACE library
+add_library(libpairg INTERFACE)
+# Defining include directories
+target_include_directories(libpairg
+  INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>;$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>)
+# Defining link libraries
+target_link_libraries(libpairg
+  INTERFACE $<BUILD_INTERFACE:Kokkos::kokkos>;$<INSTALL_INTERFACE:Kokkos::kokkos>
+  INTERFACE $<BUILD_INTERFACE:Kokkos::kokkoskernels>;$<INSTALL_INTERFACE:Kokkos::kokkoskernels>)
+# Use C++14
+target_compile_features(libpairg INTERFACE cxx_std_14)
+# Setting header files
+file(GLOB HEADER_FILES RELATIVE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/include/pairg/*.hpp")
+list(TRANSFORM HEADER_FILES PREPEND "${PROJECT_SOURCE_DIR}/include/" OUTPUT_VARIABLE BUILD_HEADER_FILES)
+list(TRANSFORM HEADER_FILES PREPEND "${CMAKE_INSTALL_FULL_INCLUDEDIR}/" OUTPUT_VARIABLE INSTALL_HEADER_FILES)
+# Defining target sources
+target_sources(libpairg
+  INTERFACE "$<BUILD_INTERFACE:${BUILD_HEADER_FILES}>;$<INSTALL_INTERFACE:${INSTALL_HEADER_FILES}>")
+# Defining `pairg::libpairg` alias
+add_library(pairg::libpairg ALIAS libpairg)
+# Install targets
+install(FILES ${BUILD_HEADER_FILES} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/pairg)
+# Exporting targets
+install(TARGETS libpairg EXPORT pairg-targets)
+install(EXPORT pairg-targets NAMESPACE pairg:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pairg)
+# Creating the package configuration file
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pairg-config.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/pairg-config.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pairg)
+# Generating the version file for the configuration file
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/pairg-config-version.cmake"
+  VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+  COMPATIBILITY AnyNewerVersion)
+# Install generated configuration files
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pairg-config.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/pairg-config-version.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pairg)
 
 # Save libs and executables in the same place
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib CACHE PATH "Output directory for libraries" )
 
-include_directories("${PROJECT_SOURCE_DIR}/ext")
-include_directories("${PROJECT_SOURCE_DIR}/src/include")
+# Build PairG command-line tool
+if(NOT BUILD_LIBRARY_ONLY)
+  add_subdirectory("${PROJECT_SOURCE_DIR}/src")
+endif(NOT BUILD_LIBRARY_ONLY)
 
-#### kokkos stuff
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/impl")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/impl/tpls")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/common")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/graph")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/graph/impl")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/sparse")
-include_directories("${PROJECT_SOURCE_DIR}/ext/kokkos-kernels/src/sparse/impl")
-
-add_subdirectory("${PROJECT_SOURCE_DIR}/ext/kokkos" ${PROJECT_BINARY_DIR}/kokkos)
-include_directories(${Kokkos_INCLUDE_DIRS_RET})
-
-file(WRITE "${PROJECT_BINARY_DIR}/KokkosKernels_config.h" "//dummy file for kokkos-kernels to include")
-include_directories("${PROJECT_BINARY_DIR}")
-
-### Include and compile htslib
-include_directories("${PROJECT_SOURCE_DIR}/ext/htslib")
-# Advice: in case htslib is missing some core libraries, install them  
-add_custom_target(LIBHTS COMMAND make WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/ext/htslib" COMMENT "Compiling htslib") 
-set(HTS_LIBRARY "${PROJECT_SOURCE_DIR}/ext/htslib/libhts.so")
-
-
-### Protobuf stuff
-#NOTE: user is expected to set the following variable PROTOBUF_DIR 
-set(PROTOBUF_DIR CACHE STRING "absolute path to protobuf installation directory")
-set(PROTOBUF_INCLUDE_DIR "${PROTOBUF_DIR}/include")
-set(PROTOBUF_LIBRARY "${PROTOBUF_DIR}/lib/libprotobuf.so")
-set(PROTOBUF_PROTOC_EXECUTABLE "${PROTOBUF_DIR}/bin/protoc")
-if(EXISTS "${PROTOBUF_INCLUDE_DIR}" AND EXISTS "${PROTOBUF_LIBRARY}" AND EXISTS "${PROTOBUF_PROTOC_EXECUTABLE}")
-  message(STATUS "Protobuf libraries, header files and executables located")
-else()
-  message(FATAL_ERROR "Protobuf path is invalid, cannot find required libraries, header files or executables. Set the cmake variable PROTOBUF_DIR properly.")
-endif()
-find_package(Protobuf REQUIRED)
-include_directories(${PROTOBUF_INCLUDE_DIR})
-
-### Include libvgio
-PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS "${PROJECT_SOURCE_DIR}/ext/libvgio/deps/vg.proto")
-add_custom_target(SYMLNK COMMAND ${CMAKE_COMMAND} -E create_symlink . vg  WORKING_DIRECTORY "${PROJECT_BINARY_DIR}" COMMENT "Adding symbolic link vg") 
-include_directories("${PROJECT_SOURCE_DIR}/ext/libvgio/include")
-file(GLOB VGIO_SRC "${PROJECT_SOURCE_DIR}/ext/libvgio/src/*.cpp")
-add_library(LIBVGIO ${PROTO_SRCS} ${VGIO_SRC})
-add_dependencies(LIBVGIO SYMLNK)
-
-
-###generate test executables if requested
-add_subdirectory("${PROJECT_SOURCE_DIR}/tests")
-
-###generate main executable
-add_executable(pairg "${PROJECT_SOURCE_DIR}/src/main.cpp")
-add_dependencies(pairg LIBHTS SYMLNK)
-target_link_libraries(pairg kokkos ${PROTOBUF_LIBRARY} LIBVGIO ${HTS_LIBRARY})
+# Generate test executables if requested
+if(BUILD_TESTING)
+  add_subdirectory("${PROJECT_SOURCE_DIR}/tests")
+endif(BUILD_TESTING)

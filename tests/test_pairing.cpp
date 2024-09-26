@@ -3,10 +3,12 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#include "reachability.hpp"
-
 //External includes
-#include "catch/single_include/catch2/catch.hpp"
+#include <pairg/reachability.hpp>
+#include <catch2/catch.hpp>
+
+#include "PaSGAL/graphLoad.hpp"
+#include "parseCmdArgs.hpp"
 
 #define QUOTE(name) #name
 #define STR(macro) QUOTE(macro)
@@ -14,8 +16,6 @@
 
 TEST_CASE("building valid-pair matrix for a chain graph") 
 {
-  Kokkos::initialize();
-
   //get file name
   std::string file = FOLDER;
   file = file + "/chain.txt";
@@ -33,8 +33,11 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     int V = 81189;
     int E = 81188;
 
-    pairg::matrixOps::crsMat_t A = pairg::getAdjacencyMatrix(parameters);
-    pairg::matrixOps::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters); 
+    psgl::graphLoader g;
+    g.loadFromTxt(parameters.graphfile);
+
+    pairg::matrixOps<>::crsMat_t A = pairg::getAdjacencyMatrix(g.diCharGraph);
+    pairg::matrixOps<>::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters.d_low, parameters.d_up);
 
     //B should be VxV identity matrix if distance contraints are 0,0
 
@@ -63,8 +66,11 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     int V = 81189;
     int E = 81188;
 
-    pairg::matrixOps::crsMat_t A = pairg::getAdjacencyMatrix(parameters);
-    pairg::matrixOps::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters); 
+    psgl::graphLoader g;
+    g.loadFromTxt(parameters.graphfile);
+
+    pairg::matrixOps<>::crsMat_t A = pairg::getAdjacencyMatrix(g.diCharGraph);
+    pairg::matrixOps<>::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters.d_low, parameters.d_up);
 
     //B should be same as A if distance contraints are 1,1
 
@@ -93,8 +99,11 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     int V = 81189;
     int E = 81188;
 
-    pairg::matrixOps::crsMat_t A = pairg::getAdjacencyMatrix(parameters);
-    pairg::matrixOps::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters); 
+    psgl::graphLoader g;
+    g.loadFromTxt(parameters.graphfile);
+
+    pairg::matrixOps<>::crsMat_t A = pairg::getAdjacencyMatrix(g.diCharGraph);
+    pairg::matrixOps<>::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters.d_low, parameters.d_up);
 
     //B should be a zero matrix 
 
@@ -118,8 +127,11 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     int V = 81189;
     int E = 81188;
 
-    pairg::matrixOps::crsMat_t A = pairg::getAdjacencyMatrix(parameters);
-    pairg::matrixOps::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters); 
+    psgl::graphLoader g;
+    g.loadFromTxt(parameters.graphfile);
+
+    pairg::matrixOps<>::crsMat_t A = pairg::getAdjacencyMatrix(g.diCharGraph);
+    pairg::matrixOps<>::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters.d_low, parameters.d_up);
 
     //B should have 4,139,313 nnz values (= 51*81139 + {50,49...1})
     int NNZ = 4139364;
@@ -140,14 +152,14 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     SECTION( "checking whether queries are answered correctly" ) {
       //Remember that vertex ids are 0-based while querying
 
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 0) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 1) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 1, 0) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 50) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 51) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 0) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 1) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 1, 0) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 50) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 51) == false);
 
-      REQUIRE(pairg::matrixOps::queryValue (B, 81137, 81188) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 81138, 81188) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81137, 81188) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81138, 81188) == true);
     }
   }
 
@@ -162,8 +174,11 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     int V = 81189;
     int E = 81188;
 
-    pairg::matrixOps::crsMat_t A = pairg::getAdjacencyMatrix(parameters);
-    pairg::matrixOps::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters); 
+    psgl::graphLoader g;
+    g.loadFromTxt(parameters.graphfile);
+
+    pairg::matrixOps<>::crsMat_t A = pairg::getAdjacencyMatrix(g.diCharGraph);
+    pairg::matrixOps<>::crsMat_t B = pairg::buildValidPairsMatrix(A, parameters.d_low, parameters.d_up);
 
     //B should have 891,924 nnz values (= 11*81079 + {10,9...1})
     int NNZ = 891924;
@@ -184,19 +199,17 @@ TEST_CASE("building valid-pair matrix for a chain graph")
     SECTION( "checking whether queries are answered correctly" ) {
       //Remember that vertex ids are 0-based while querying
 
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 0) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 1) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 99) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 100) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 110) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 0, 111) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 0) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 1) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 99) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 100) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 110) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 0, 111) == false);
 
-      REQUIRE(pairg::matrixOps::queryValue (B, 81088, 81188) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 81089, 81188) == false);
-      REQUIRE(pairg::matrixOps::queryValue (B, 81078, 81188) == true);
-      REQUIRE(pairg::matrixOps::queryValue (B, 81077, 81188) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81088, 81188) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81089, 81188) == false);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81078, 81188) == true);
+      REQUIRE(pairg::matrixOps<>::queryValue (B, 81077, 81188) == false);
     }
   }
-
-  Kokkos::finalize();
 }

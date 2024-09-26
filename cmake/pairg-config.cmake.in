@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Kokkos REQUIRED)
+find_dependency(KokkosKernels REQUIRED)
+
+if(NOT TARGET pairg::libpairg)
+  include("${CMAKE_CURRENT_LIST_DIR}/pairg-targets.cmake")
+endif()
+
+check_required_components(pairg)
+
+include("${CMAKE_CURRENT_LIST_DIR}/pairg-config-version.cmake")
+message(STATUS "Found PairG (version ${PACKAGE_VERSION})")
